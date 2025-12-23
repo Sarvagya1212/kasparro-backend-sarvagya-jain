@@ -45,7 +45,7 @@ class ETLScheduler:
         """Start the scheduler"""
         self.scheduler.add_job(
             self.run_etl_job,
-            trigger=IntervalTrigger(minutes=5),  # Run every 5 minutes
+            trigger=IntervalTrigger(minutes=30),  # Run every 30 minutes
             id="etl_job",
             replace_existing=True
         )
