@@ -2,6 +2,16 @@
 
 A production-grade ETL (Extract, Transform, Load) pipeline built with FastAPI, PostgreSQL, and Docker. Designed for ingesting data from multiple sources (APIs, CSV, RSS) with robust error handling, resume-on-failure capability, and idempotent operations.
 
+## 🌐 Live Demo
+
+**Deployed on AWS EC2:** http://16.170.251.121:8000
+
+Try the API:
+- **Health Check:** http://16.170.251.121:8000/health
+- **Data Endpoint:** http://16.170.251.121:8000/data
+- **Statistics:** http://16.170.251.121:8000/stats
+- **API Docs:** http://16.170.251.121:8000/docs
+
 ## 🚀 Quick Start
 
 ### Prerequisites
