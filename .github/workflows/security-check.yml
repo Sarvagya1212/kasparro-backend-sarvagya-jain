@@ -1,0 +1,55 @@
+name: Security - Secret Leak Detection
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  check-secrets:
+    name: Scan for Hardcoded Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Run secret detection script
+        run: |
+          python scripts/check_secrets.py
+        continue-on-error: false
+      
+      - name: Verify .env is gitignored
+        run: |
+          if git check-ignore .env > /dev/null 2>&1; then
+            echo "✓ .env is properly gitignored"
+          else
+            echo "❌ ERROR: .env is NOT gitignored!"
+            exit 1
+          fi
+      
+      - name: Check for real API keys in .env.example
+        run: |
+          if grep -E "CG-[A-Za-z0-9]{20,}" .env.example; then
+            echo "❌ ERROR: Real API key found in .env.example!"
+            exit 1
+          else
+            echo "✓ No real API keys in .env.example"
+          fi
+      
+      - name: Security scan summary
+        if: success()
+        run: |
+          echo "🔒 Security Scan Complete"
+          echo "========================="
+          echo "✓ No hardcoded secrets detected"
+          echo "✓ .env properly gitignored"
+          echo "✓ .env.example contains placeholders only"

@@ -46,6 +46,29 @@ docker compose exec postgres psql -U etl_user -d etl_db -c "CREATE EXTENSION IF 
 docker compose exec api python scripts/init_db.py
 ```
 
+## 🚀 Deployment
+
+**This system is production-ready and designed for cloud deployment using Docker.**
+
+### Deployment Overview
+
+The Kasparro ETL system is containerized and can be deployed to any cloud platform (AWS EC2, GCP VM, Azure VM) or on-premises infrastructure.
+
+**Quick Deployment Steps:**
+
+1. **Provision VM** - Minimum 2 vCPU, 4GB RAM
+2. **Install Docker + Docker Compose** - Use official installation scripts
+3. **Configure Environment Variables** - Copy `.env.example` to `.env` and set your API keys
+4. **Run `docker compose up -d`** - Start all services in detached mode
+5. **Initialize Database** - Run setup scripts to create tables and extensions
+6. **ETL Scheduling** - APScheduler runs automatically (every 30 minutes by default)
+
+**Live Production Instance:** [http://16.170.251.121:8000](http://16.170.251.121:8000)
+
+For detailed deployment instructions, see the [Cloud Deployment](#️-cloud-deployment) section below.
+
+---
+
 ## 🏗️ Architecture
 
 ### System Overview
@@ -250,37 +273,123 @@ erDiagram
 - ✅ **Automated Scheduling** - Background ETL jobs via APScheduler
 - ✅ **RESTful API** - Query and filter ingested data
 
-## ⏰ Automated Scheduling
+## ⏰ Automated ETL Scheduling
 
-**The ETL scheduler runs automatically when the API starts!**
+**The ETL pipeline runs automatically via APScheduler - no manual cron setup required!**
+
+### Scheduler Overview
+
+The system uses **APScheduler** (Advanced Python Scheduler) integrated directly into the FastAPI application lifecycle. The scheduler starts automatically when the API container starts and runs ETL jobs at regular intervals.
+
+**Key Details:**
+- **Scheduler Type:** APScheduler (AsyncIOScheduler)
+- **Default Interval:** Every **30 minutes**
+- **Auto-Start:** Yes - starts with `docker compose up`
+- **Manual Trigger:** Available via `scripts/run_etl.py`
 
 ### How It Works
-- APScheduler is integrated into the FastAPI application lifecycle
-- ETL jobs run every **30 minutes** by default
-- Scheduler starts on `docker compose up`
-- No manual intervention required
+
+1. **Automatic Startup**
+   - When the API container starts, APScheduler initializes
+   - ETL job is registered with a 30-minute interval trigger
+   - First run occurs 30 minutes after startup
+
+2. **Execution Flow**
+   ```
+   API Startup → APScheduler Init → Schedule ETL Job → Run Every 30 Min
+   ```
+
+3. **No Cron Required**
+   - Unlike traditional ETL systems, no external cron jobs needed
+   - Scheduler runs inside the application process
+   - Survives container restarts (resumes from checkpoint)
 
 ### Configuration
-Edit `ingestion/scheduler.py` to change schedule:
+
+#### Change Interval
+
+Edit [`ingestion/scheduler.py`](file:///f:/kasparro-etl/ingestion/scheduler.py) (line 47):
+
 ```python
-scheduler.add_job(
-    run_etl_job,
-    trigger="interval",
-    minutes=30,  # Change this value
+self.scheduler.add_job(
+    self.run_etl_job,
+    trigger=IntervalTrigger(minutes=30),  # Change interval here
     id="etl_job",
     replace_existing=True
 )
 ```
 
+**Examples:**
+- Every 15 minutes: `minutes=15`
+- Every hour: `minutes=60`
+- Every 6 hours: `hours=6`
+- Daily at midnight: Use `CronTrigger(hour=0, minute=0)` instead
+
+#### Disable Automatic Scheduling
+
+**Option 1: Comment out scheduler startup** (Recommended)
+
+Edit [`api/main.py`](file:///f:/kasparro-etl/api/main.py):
+
+```python
+@app.on_event("startup")
+async def startup_event():
+    # etl_scheduler.start()  # Comment this line to disable
+    logger.info("API started (scheduler disabled)")
+```
+
+**Option 2: Environment variable control**
+
+Add to `.env`:
+```env
+ENABLE_SCHEDULER=false
+```
+
+Then modify `api/main.py`:
+```python
+if os.getenv("ENABLE_SCHEDULER", "true").lower() == "true":
+    etl_scheduler.start()
+```
+
+#### Enable Manual-Only Mode
+
+If you disable the scheduler, run ETL manually:
+
+```bash
+# Run ETL on-demand
+docker compose exec api python scripts/run_etl.py
+
+# Or set up external cron (on host machine)
+0 * * * * docker compose -f /path/to/docker-compose.yml exec -T api python scripts/run_etl.py
+```
+
 ### Verify Scheduler is Running
+
 ```bash
 # Check API logs for scheduler messages
 docker compose logs api | grep -i "scheduler"
 
 # Expected output:
 # "ETL Scheduler started"
-# "Running scheduled ETL job"
+# "Scheduler: Starting ETL job"
 ```
+
+### Alternative: External Cron (Optional)
+
+If you prefer traditional cron over APScheduler:
+
+1. Disable APScheduler (see above)
+2. Add cron job on host machine:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add entry (runs every 30 minutes)
+*/30 * * * * cd /path/to/kasparro-etl && docker compose exec -T api python scripts/run_etl.py >> /var/log/etl-cron.log 2>&1
+```
+
+**Note:** APScheduler is recommended for production as it's container-native and doesn't require host-level cron access.
 
 ## 📋 Available Commands
 
@@ -504,6 +613,77 @@ BATCH_SIZE=1000
 MAX_RETRIES=3
 ```
 
+## 🔐 Secrets Management
+
+**Security Best Practices:**
+
+- ✅ **No secrets committed to repository** - All sensitive data excluded via `.gitignore`
+- ✅ **`.env.example` contains placeholders only** - Safe template for developers
+- ✅ **Real secrets injected via environment variables** - Configured at runtime, never in code
+- ✅ **`.env` file gitignored** - Local secrets never tracked in version control
+
+### How It Works
+
+1. **Template File:** [`.env.example`](file:///f:/kasparro-etl/.env.example) contains placeholder values
+   ```env
+   API_KEY=YOUR_API_KEY_HERE  # ← Placeholder, not a real key
+   ```
+
+2. **Local Development:** Developers copy and populate with real values
+   ```bash
+   cp .env.example .env
+   # Edit .env with actual API keys (never commit this file)
+   ```
+
+3. **Production Deployment:** Environment variables injected by cloud platform
+   - AWS: EC2 user data, Secrets Manager, or Parameter Store
+   - GCP: Secret Manager or instance metadata
+   - Docker: `docker-compose.yml` reads from `.env` file (not committed)
+
+4. **Runtime Injection:** Application reads secrets from environment
+   ```python
+   # core/config.py
+   API_KEY = os.getenv("API_KEY")  # Loaded at runtime
+   ```
+
+### Verification
+
+```bash
+# Verify .env is gitignored
+git check-ignore .env
+# Output: .env (confirmed ignored)
+
+# Verify no secrets in repository
+git grep -i "api_key" -- ':!.env.example'
+# Should only show placeholder references
+
+# Run secret detection script
+python scripts/check_secrets.py
+```
+
+### Advanced Security Features
+
+**1. Startup Validation** - The application validates API keys at startup and warns if placeholders are used:
+```
+⚠️  API_KEY not set or using placeholder value - API data sources may not work
+```
+
+**2. Pre-commit Hook** - Automatically scans for secrets before commits:
+```bash
+# Install pre-commit hook
+cp scripts/check_secrets.py .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+**3. CI/CD Secret Detection** - GitHub Actions workflow automatically scans on every push:
+- Detects hardcoded API keys and secrets
+- Verifies `.env` is gitignored
+- Fails builds if secrets found
+
+For complete security documentation, see [SECURITY.md](file:///f:/kasparro-etl/SECURITY.md).
+
+**Result:** Zero secrets in version control, production-grade security! 🔒
+
 ## 📊 Monitoring
 
 ### Check ETL Status
@@ -589,6 +769,8 @@ Invoke-RestMethod "http://localhost:8000/data?source_type=api&page_size=5"
 - **RSS Extractor Async Issue** - RSS feed extractor has async compatibility issues with feedparser library in current implementation (API and CSV sources fully functional)
 
 ## ☁️ Cloud Deployment
+
+**The system is production-ready and deployed on AWS EC2. Follow these steps to deploy to any cloud provider.**
 
 ### Prerequisites
 - Cloud account (AWS/GCP/Azure)

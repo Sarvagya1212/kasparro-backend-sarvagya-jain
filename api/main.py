@@ -48,6 +48,13 @@ async def startup_event():
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Database: {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else 'configured'}")
     
+    # Validate API Key configuration (defensive engineering)
+    if not settings.API_KEY or settings.API_KEY in ("", "YOUR_API_KEY_HERE"):
+        logger.warning("⚠️  API_KEY not set or using placeholder value - API data sources may not work")
+        logger.warning("   Set API_KEY in .env file for production use")
+    else:
+        logger.info("✓ API_KEY configured")
+    
     # Start Scheduler
     scheduler.start()
 

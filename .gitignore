@@ -30,6 +30,10 @@ env/
 .env
 .env.local
 
+# Private Keys
+*.pem
+*.key
+
 # IDE
 .vscode/
 .idea/
