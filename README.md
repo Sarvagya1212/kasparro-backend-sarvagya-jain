@@ -4,13 +4,13 @@ A production-grade ETL (Extract, Transform, Load) pipeline built with FastAPI, P
 
 ## 🌐 Live Demo
 
-**Deployed on AWS EC2:** http://16.170.251.121:8000
+**Deployed on AWS EC2:** http://16.171.159.181:8000
 
 Try the API:
-- **Health Check:** http://16.170.251.121:8000/health
-- **Data Endpoint:** http://16.170.251.121:8000/data
-- **Statistics:** http://16.170.251.121:8000/stats
-- **API Docs:** http://16.170.251.121:8000/docs
+- **Health Check:** http://16.171.159.181:8000/health
+- **Data Endpoint:** http://16.171.159.181:8000/data
+- **Statistics:** http://16.171.159.181:8000/stats
+- **API Docs:** http://16.171.159.181:8000/docs
 
 ## 🚀 Quick Start
 
@@ -63,7 +63,7 @@ The Kasparro ETL system is containerized and can be deployed to any cloud platfo
 5. **Initialize Database** - Run setup scripts to create tables and extensions
 6. **ETL Scheduling** - APScheduler runs automatically (every 30 minutes by default)
 
-**Live Production Instance:** [http://16.170.251.121:8000](http://16.170.251.121:8000)
+**Live Production Instance:** [http://16.171.159.181:8000](http://16.171.159.181:8000)
 
 For detailed deployment instructions, see the [Cloud Deployment](#️-cloud-deployment) section below.
 
